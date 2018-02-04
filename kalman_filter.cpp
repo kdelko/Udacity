@@ -35,20 +35,21 @@ void KalmanFilter::Update(const VectorXd &z) {
   TODO:
     * update the state by using Kalman Filter equations
   */
-  MatrixXd H;
-  MatrixXd x;
-  MatrixXd P;
-  MatrixXd R;
-  MatrixXd I;
-  VectorXd y = z - H * x;
-	MatrixXd Ht = H.transpose();
-	MatrixXd S = H * P * Ht + R;
-	MatrixXd Si = S.inverse();
-	MatrixXd K =  P * Ht * Si;
+  //MatrixXd H;
+  VectorXd z_pred = H_ * x_;
+  VectorXd y = z - z_pred;
+  //KF(y);
+  MatrixXd Ht = H_.transpose();
+  MatrixXd S = H_ * P_ * Ht + R_;
+  MatrixXd Si = S.inverse();
+  MatrixXd PHt = P_ * Ht;
+  MatrixXd K = PHt * Si;
 
-  //new state
-  x = x + (K * y);
-  P = (I - K * H) * P; // from Sextion 7 lesson 5
+  //new estimate
+  x_ = x_ + (K * y);
+  long x_size = x_.size();
+  MatrixXd I = MatrixXd::Identity(x_size, x_size);
+  P_ = (I - K * H_) * P_;
 }
 
 void KalmanFilter::UpdateEKF(const VectorXd &z) {
@@ -59,28 +60,31 @@ void KalmanFilter::UpdateEKF(const VectorXd &z) {
   // EKF requires special calculation of z prediction
   //Section 14 Lesson 5
   //cout << "EKF: " << endl;
-  ekf_.x_ = VectorXd(4);
-  ekf_.x_ << 1, 1, 1, 1;
-  float x = ekf_.x_(0);
-  float y = ekf_.x_(1);
-  float vx = ekf_.x_(2);
-  float vy = ekf_.x_(3);
 
-  float rho = sqrt(x*x+y*y);
-  float theta = atan2(x,y);
-  float ro_dot = (x*vx+y*vy)/rho;
+  //ekf_.x_ = VectorXd(4);
+  //ekf_.x_ << 1, 1, 1, 1;
+  //float x = ekf_.x_(0);
+  //float y = ekf_.x_(1);
+  //float vx = ekf_.x_(2);
+  //float vy = ekf_.x_(3);
+
+  double rho = sqrt(x_(0)*x_(0)+x_(1)*x_(1));
+  double theta = atan(x_(1)/x_(0));
+  double rho_dot = (x_(0)*x_(2)+x_(1)*x_(3))/rho;
   VectorXd z_pred = VectorXd(3);
-  z_pred << rho.theta.ro_dot;
-  VectorXd y = z - z.pred; //this time y is z-z_pred vs
+  z_pred << rho,theta,rho_dot;
+  VectorXd y = z - z_pred; //this time y is z-z_pred vs
                             // in case of laser y = z - H * x
-
   //from section 7 in lesson 5
-  MatrixXd Ht = H.transpose();
-	MatrixXd S = H * P * Ht + R;
+  MatrixXd Ht = H_.transpose();
+	MatrixXd S = H_ * P_ * Ht + R_;
 	MatrixXd Si = S.inverse();
-	MatrixXd K =  P * Ht * Si;
+  MatrixXd PHt = P_ * Ht;
+	MatrixXd K =  PHt * Si;
 
   //new state
-  x = x + (K * y);
-  P = (I - K * H) * P; // from Sextion 7 lesson 5
+  x_ = x_ + (K * y);
+  long x_size =x_.size();
+  MatrixXd I = MatrixXd::Identity(x_size,x_size);
+  P_ = (I - K * H_) * P_; // from Sextion 7 lesson 5
 }
