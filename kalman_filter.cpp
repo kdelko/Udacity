@@ -35,6 +35,11 @@ void KalmanFilter::Update(const VectorXd &z) {
   TODO:
     * update the state by using Kalman Filter equations
   */
+  MatrixXd H;
+  MatrixXd x;
+  MatrixXd P;
+  MatrixXd R;
+  MatrixXd I;
   VectorXd y = z - H * x;
 	MatrixXd Ht = H.transpose();
 	MatrixXd S = H * P * Ht + R;
@@ -44,7 +49,7 @@ void KalmanFilter::Update(const VectorXd &z) {
   //new state
   x = x + (K * y);
   P = (I - K * H) * P; // from Sextion 7 lesson 5
-
+}
 
 void KalmanFilter::UpdateEKF(const VectorXd &z) {
   /**
@@ -52,6 +57,10 @@ void KalmanFilter::UpdateEKF(const VectorXd &z) {
     * update the state by using Extended Kalman Filter equations
   */
   // EKF requires special calculation of z prediction
+  //Section 14 Lesson 5
+  //cout << "EKF: " << endl;
+  ekf_.x_ = VectorXd(4);
+  ekf_.x_ << 1, 1, 1, 1;
   float x = ekf_.x_(0);
   float y = ekf_.x_(1);
   float vx = ekf_.x_(2);
@@ -74,6 +83,4 @@ void KalmanFilter::UpdateEKF(const VectorXd &z) {
   //new state
   x = x + (K * y);
   P = (I - K * H) * P; // from Sextion 7 lesson 5
-
-
 }
