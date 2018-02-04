@@ -43,8 +43,8 @@ FusionEKF::FusionEKF() {
   ekf_.P_ = MatrixXd(4,4);// 4by4 Matrix
 
 //set the accelerator noise components
-  noise_ax = 5; //provided in section 13 of lesson 5, they use noise_ax=3, we square
-  noise_ay = 5;
+  int noise_ax = 9; //provided in section 13 of lesson 5, they use noise_ax=3, we square
+  int noise_ay = 9;
 }
 
 /**
@@ -69,7 +69,10 @@ void FusionEKF::ProcessMeasurement(const MeasurementPackage &measurement_pack) {
     cout << "EKF: " << endl;
     ekf_.x_ = VectorXd(4);
     ekf_.x_ << 1, 1, 1, 1;
-
+    float ro;
+    float theta;
+    float x;
+    float y;
     if (measurement_pack.sensor_type_ == MeasurementPackage::RADAR) {
       /**
       Convert radar from polar to cartesian coordinates and initialize state.
@@ -82,7 +85,7 @@ void FusionEKF::ProcessMeasurement(const MeasurementPackage &measurement_pack) {
       Initialize state.
       */
       ekf_.x_(0)=x;
-      ekf_.x_(1)=1;
+      ekf_.x_(1)=y;
     }
     ekf_.F_ << 1,0,0,0,
               0,1,0,0,
@@ -108,15 +111,17 @@ void FusionEKF::ProcessMeasurement(const MeasurementPackage &measurement_pack) {
    float dt = (measurement_pack.timestamp_ - previous_timestamp_) / 1000000.0;	//dt - expressed in seconds
 	 previous_timestamp_ = measurement_pack.timestamp_;
    //modify F matrix so time is integrated Section 8 Lesson 5
-   kf_.F_(0, 2) = dt;
-	 kf_.F_(1, 3) = dt;
+   ekf_.F_(0, 2) = dt;
+	 ekf_.F_(1, 3) = dt;
    //set dt, dt_2 and dt_3 for Q Matrix
    float dt_2 = dt * dt;
 	 float dt_3 = dt_2 * dt;
 	 float dt_4 = dt_3 * dt;
-   //set Q matrix Sectin 9 less 5
-   kf_.Q_ = MatrixXd(4, 4);
-	 kf_.Q_ <<  dt_4/4*noise_ax, 0, dt_3/2*noise_ax, 0,
+   int noise_ax;
+   int noise_ay;
+   //set Q matrix Secti0https://github.com/kdelko/Udacityn 9 less 5
+   ekf_.Q_ = MatrixXd(4, 4);
+	 ekf_.Q_ <<  dt_4/4*noise_ax, 0, dt_3/2*noise_ax, 0,
 			   0, dt_4/4*noise_ay, 0, dt_3/2*noise_ay,
 			   dt_3/2*noise_ax, 0, dt_2*noise_ax, 0,
 			   0, dt_3/2*noise_ay, 0, dt_2*noise_ay; // from section 12 lesson 5
@@ -132,7 +137,7 @@ void FusionEKF::ProcessMeasurement(const MeasurementPackage &measurement_pack) {
      * Use the sensor type to perform the update step.
      * Update the state and covariance matrices.
    */
-
+  float Hj;
   if (measurement_pack.sensor_type_ == MeasurementPackage::RADAR) {
     // Radar updates
     ekf_.H_=Hj ; //Hj is calculated Jacobian, by using tools reference above
