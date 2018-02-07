@@ -61,16 +61,16 @@ void KalmanFilter::UpdateEKF(const VectorXd &z) {
   float vx = x_(2);
   float vy = x_(3);
   float rho = sqrt(pow(px, 2) + pow(py, 2));
-  float phi = 0.0; // this will be default case if px is 0
+  float phi = 0.0; 
   if (fabs(px) > 0.0001) {
-      phi = atan2(py,px);
+      phi = atan2(py,px); //check if absolute px is zero, normalize angle for z-z_pred
   }
-  float rho_dot = 0; // this will be default case if rho is 0
+  float rho_dot = 0; 
   if (fabs(rho) > 0.0001) {
       rho_dot = (px*vx + py*vy) / rho;
   }
   Hx << rho, phi, rho_dot;
-  VectorXd y = z - Hx;
+  VectorXd y = z - Hx;//use Jacobian
   // normalize result to -pi and pi
   if (fabs(y(1))>3.14){
       y(1) = fmod(y(1),2*3.14);
