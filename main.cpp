@@ -1,14 +1,16 @@
 #include <uWS/uWS.h>
 #include <iostream>
 #include "json.hpp"
+#include "PID.h"
 #include <math.h>
-#include "ukf.h"
-#include "tools.h"
-
-using namespace std;
 
 // for convenience
 using json = nlohmann::json;
+
+// For converting back and forth between radians and degrees.
+constexpr double pi() { return M_PI; }
+double deg2rad(double x) { return x * pi() / 180; }
+double rad2deg(double x) { return x * 180 / pi(); }
 
 // Checks if the SocketIO event has JSON data.
 // If there is data the JSON object in string format will be returned,
@@ -16,7 +18,7 @@ using json = nlohmann::json;
 std::string hasData(std::string s) {
   auto found_null = s.find("null");
   auto b1 = s.find_first_of("[");
-  auto b2 = s.find_first_of("]");
+  auto b2 = s.find_last_of("]");
   if (found_null != std::string::npos) {
     return "";
   }
@@ -26,128 +28,56 @@ std::string hasData(std::string s) {
   return "";
 }
 
-int main()
+int main(int argc,char *argv[])
 {
   uWS::Hub h;
 
-  // Create a Kalman Filter instance
-  UKF ukf;
-
-  // used to compute the RMSE later
-  Tools tools;
-  vector<VectorXd> estimations;
-  vector<VectorXd> ground_truth;
-
-  h.onMessage([&ukf,&tools,&estimations,&ground_truth](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length, uWS::OpCode opCode) {
+  PID pid;
+  // TODO: Initialize the pid variable.
+  double init_Kp =atof(argv[1]);
+  double init_Ki=atof(argv[2]);
+  double init_Kd=atof(argv[3]);
+  pid.Init(init_Kp,init_Ki,init_Kd);
+  h.onMessage([&pid](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length, uWS::OpCode opCode) {
     // "42" at the start of the message means there's a websocket message event.
     // The 4 signifies a websocket message
     // The 2 signifies a websocket event
-
     if (length && length > 2 && data[0] == '4' && data[1] == '2')
     {
-
-      auto s = hasData(std::string(data));
+      auto s = hasData(std::string(data).substr(0, length));
       if (s != "") {
-      	
         auto j = json::parse(s);
-
         std::string event = j[0].get<std::string>();
-        
         if (event == "telemetry") {
           // j[1] is the data JSON object
-          
-          string sensor_measurment = j[1]["sensor_measurement"];
-          
-          MeasurementPackage meas_package;
-          istringstream iss(sensor_measurment);
-    	  long long timestamp;
-
-    	  // reads first element from the current line
-    	  string sensor_type;
-    	  iss >> sensor_type;
-
-    	  if (sensor_type.compare("L") == 0) {
-      	  		meas_package.sensor_type_ = MeasurementPackage::LASER;
-          		meas_package.raw_measurements_ = VectorXd(2);
-          		float px;
-      	  		float py;
-          		iss >> px;
-          		iss >> py;
-          		meas_package.raw_measurements_ << px, py;
-          		iss >> timestamp;
-          		meas_package.timestamp_ = timestamp;
-          } else if (sensor_type.compare("R") == 0) {
-
-      	  		meas_package.sensor_type_ = MeasurementPackage::RADAR;
-          		meas_package.raw_measurements_ = VectorXd(3);
-          		float ro;
-      	  		float theta;
-      	  		float ro_dot;
-          		iss >> ro;
-          		iss >> theta;
-          		iss >> ro_dot;
-          		meas_package.raw_measurements_ << ro,theta, ro_dot;
-          		iss >> timestamp;
-          		meas_package.timestamp_ = timestamp;
-          }
-          float x_gt;
-    	  float y_gt;
-    	  float vx_gt;
-    	  float vy_gt;
-    	  iss >> x_gt;
-    	  iss >> y_gt;
-    	  iss >> vx_gt;
-    	  iss >> vy_gt;
-    	  VectorXd gt_values(4);
-    	  gt_values(0) = x_gt;
-    	  gt_values(1) = y_gt; 
-    	  gt_values(2) = vx_gt;
-    	  gt_values(3) = vy_gt;
-    	  ground_truth.push_back(gt_values);
-          
-          //Call ProcessMeasurment(meas_package) for Kalman filter
-    	  ukf.ProcessMeasurement(meas_package);    	  
-
-    	  //Push the current estimated x,y positon from the Kalman filter's state vector
-
-    	  VectorXd estimate(4);
-
-    	  double p_x = ukf.x_(0);
-    	  double p_y = ukf.x_(1);
-    	  double v  = ukf.x_(2);
-    	  double yaw = ukf.x_(3);
-
-    	  double v1 = cos(yaw)*v;
-    	  double v2 = sin(yaw)*v;
-
-    	  estimate(0) = p_x;
-    	  estimate(1) = p_y;
-    	  estimate(2) = v1;
-    	  estimate(3) = v2;
-    	  
-    	  estimations.push_back(estimate);
-
-    	  VectorXd RMSE = tools.CalculateRMSE(estimations, ground_truth);
+          double cte = std::stod(j[1]["cte"].get<std::string>());
+          double speed = std::stod(j[1]["speed"].get<std::string>());
+          double angle = std::stod(j[1]["steering_angle"].get<std::string>());
+          double steer_value;
+          /*
+          * TODO: Calcuate steering value here, remember the steering value is
+          * [-1, 1].
+          * NOTE: Feel free to play around with the throttle and speed. Maybe use
+          * another PID controller to control the speed!
+          */
+          pid.UpdateError(cte);
+          steer_value=pid.TotalError();
+          // DEBUG
+          std::cout << "CTE: " << cte << " Steering Value: " << steer_value << std::endl;
 
           json msgJson;
-          msgJson["estimate_x"] = p_x;
-          msgJson["estimate_y"] = p_y;
-          msgJson["rmse_x"] =  RMSE(0);
-          msgJson["rmse_y"] =  RMSE(1);
-          msgJson["rmse_vx"] = RMSE(2);
-          msgJson["rmse_vy"] = RMSE(3);
-          auto msg = "42[\"estimate_marker\"," + msgJson.dump() + "]";
-          // std::cout << msg << std::endl;
+          msgJson["steering_angle"] = steer_value;
+          msgJson["throttle"] = 0.3;
+          auto msg = "42[\"steer\"," + msgJson.dump() + "]";
+          std::cout << msg << std::endl;
           ws.send(msg.data(), msg.length(), uWS::OpCode::TEXT);
-	  
         }
       } else {
-        
+        // Manual driving
         std::string msg = "42[\"manual\",{}]";
         ws.send(msg.data(), msg.length(), uWS::OpCode::TEXT);
       }
     }
-
   });
 
   // We don't need this since we're not using HTTP but if it's removed the program
@@ -186,90 +116,3 @@ int main()
   }
   h.run();
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
